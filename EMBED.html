@@ -1,0 +1,102 @@
+<!-- 
+==============================================
+PROSPER CHAT WIDGET - EMBED CODE
+==============================================
+
+Copy this entire block and paste it on your website
+right before the closing </body> tag.
+
+REPLACE: "YOUR-PROJECT.vercel.app" with your actual Vercel URL
+
+============================================== 
+-->
+
+<script>
+  (function() {
+    // Configuration
+    var config = {
+      widgetUrl: 'https://YOUR-PROJECT.vercel.app',  // CHANGE THIS to your Vercel URL
+      position: 'bottom-right',  // Options: 'bottom-right', 'bottom-left'
+      autoOpen: false,  // Set to true to auto-open after 3 seconds
+      zIndex: 9999
+    };
+
+    // Create iframe
+    var iframe = document.createElement('iframe');
+    iframe.src = config.widgetUrl;
+    iframe.id = 'prosper-chat-widget';
+    
+    // Style the iframe
+    iframe.style.cssText = [
+      'position: fixed',
+      'bottom: 0',
+      config.position === 'bottom-left' ? 'left: 0' : 'right: 0',
+      'width: 100%',
+      'height: 100%',
+      'border: none',
+      'z-index: ' + config.zIndex,
+      'pointer-events: none',
+      'background: transparent'
+    ].join(';');
+
+    // Wait for page load
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        document.body.appendChild(iframe);
+        if (config.autoOpen) {
+          setTimeout(function() {
+            iframe.contentWindow.postMessage({ type: 'openChat' }, '*');
+          }, 3000);
+        }
+      });
+    } else {
+      document.body.appendChild(iframe);
+      if (config.autoOpen) {
+        setTimeout(function() {
+          iframe.contentWindow.postMessage({ type: 'openChat' }, '*');
+        }, 3000);
+      }
+    }
+
+    // Optional: Track chat events
+    window.addEventListener('message', function(event) {
+      if (event.origin !== config.widgetUrl.replace(/\/$/, '')) return;
+      
+      // You can add analytics tracking here
+      if (event.data.type === 'chatOpened') {
+        console.log('Chat opened');
+        // Example: gtag('event', 'chat_opened');
+      }
+      if (event.data.type === 'leadCaptured') {
+        console.log('Lead captured:', event.data.lead);
+        // Example: gtag('event', 'lead_captured', { email: event.data.lead.email });
+      }
+    });
+  })();
+</script>
+
+<!-- 
+==============================================
+EMBED CODE END
+============================================== 
+-->
+
+
+<!-- 
+==============================================
+ALTERNATIVE: SIMPLE VERSION (minimal code)
+==============================================
+
+If you just want the basic widget without customization:
+
+<script>
+  (function() {
+    var iframe = document.createElement('iframe');
+    iframe.src = 'https://YOUR-PROJECT.vercel.app';
+    iframe.style.cssText = 'position:fixed;bottom:0;right:0;width:100%;height:100%;border:none;z-index:9999;pointer-events:none;';
+    document.body.appendChild(iframe);
+  })();
+</script>
+
+============================================== 
+-->
