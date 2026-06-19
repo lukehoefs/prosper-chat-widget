@@ -98,6 +98,26 @@
       margin-bottom: 10px;
     }
 
+    .cta-button {
+      display: inline-block;
+      margin-top: 18px;
+      padding: 14px 36px;
+      background: white;
+      color: var(--primary);
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 9999px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .cta-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+    }
+
     /* Chat widget styles */
     #chat-widget {
       position: fixed;
@@ -413,6 +433,7 @@
     <div class="cta-box">
       <h3>👉 Try it now!</h3>
       <p>Click the blue chat button in the bottom-right corner</p>
+      <button class="cta-button" onclick="document.getElementById('chat-button').click()">Get a Quote</button>
     </div>
   </div>
 
