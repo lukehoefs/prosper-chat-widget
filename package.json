@@ -2,15 +2,16 @@
   "name": "prosper-chat-widget",
   "version": "1.0.0",
   "description": "AI chat widget for Prosper Manufacturing with lead capture and scheduling",
+  "private": true,
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo 'Build complete'",
     "deploy": "vercel --prod"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.20.0"
+    "@anthropic-ai/sdk": "^0.117.1",
+    "zod": "^4.4.3"
   },
   "engines": {
-    "node": ">=18.x"
+    "node": "22.x"
   }
 }

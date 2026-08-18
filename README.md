@@ -37,6 +37,7 @@ prosper-chat-widget/
 ├── api/
 │   └── chat.js          # Serverless API endpoint (handles AI conversations)
 ├── index.html          # Chat widget UI (embed this on your site)
+├── EMBED.html          # Copy-paste embed snippet for your site
 ├── package.json        # Dependencies
 ├── vercel.json         # Vercel configuration
 ├── DEPLOY.md           # Detailed deployment instructions
@@ -52,12 +53,35 @@ prosper-chat-widget/
 
 2. **Backend (api/chat.js)**
    - Serverless function on Vercel
-   - Calls Anthropic Claude API
+   - Calls Claude (`claude-opus-5`) with a structured-output schema, so each
+     turn returns the reply text, the lead details learned so far, quick-reply
+     suggestions, and whether the visitor is ready to book — as typed JSON
+     rather than markers parsed out of prose
    - Manages conversation flow:
      - Greets visitor
      - Asks for name → email → qualification questions
      - Answers service questions
      - Offers calendar booking when ready
+
+### API contract
+
+`POST /api/chat`
+
+```jsonc
+// request
+{
+  "messages": [{ "role": "user", "content": "Sarah" }],  // full transcript, user turn first
+  "lead": {}                                              // lead state from the previous response
+}
+
+// response
+{
+  "reply": "Nice to meet you, Sarah! What's the best email to reach you at?",
+  "lead": { "name": "Sarah" },
+  "quickReplies": ["Screen printing", "Fulfillment"],
+  "bookingUrl": null                                      // a Calendly URL once qualified
+}
+```
 
 3. **Lead Capture Flow**
    ```
@@ -83,32 +107,19 @@ Edit `index.html`, find `:root` variables:
 
 ### Customize Messages
 
-Edit `api/chat.js`, modify the `SYSTEM_PROMPT`:
+Tone, qualification questions, and what counts as a qualified lead all live in
+the `SYSTEM_PROMPT` in `api/chat.js`.
 
-```javascript
-const SYSTEM_PROMPT = `You are a helpful assistant for Prosper Manufacturing...
+The opening line is defined in **two** places that must stay in sync:
+`WELCOME_MESSAGE` in `index.html` (shown to the visitor) and `WELCOME_MESSAGE`
+in `api/chat.js` (so the model knows it already greeted them).
 
-Your goal:
-1. Greet warmly
-2. Ask for their name
-3. Ask for email
-4. Qualify their needs
-5. Offer to schedule a call
-`;
-```
+### Calendar Integration
 
-### Add Calendar Integration
-
-When bot detects booking intent, return your Calendly link:
-
-```javascript
-if (userMessage.toLowerCase().includes('book')) {
-  return {
-    response: "Perfect! Pick a time: https://calendly.com/your-link",
-    conversationHistory: updatedHistory
-  };
-}
-```
+Booking is built in — once the assistant has a name, an email, and a sense of
+what the visitor needs, the API returns a `bookingUrl` and the widget shows a
+**Book a call** button. Set the `CALENDLY_LINK` environment variable to change
+the destination.
 
 ## 🔗 CRM Integration
 
@@ -116,18 +127,11 @@ See [DEPLOY.md](./DEPLOY.md) for GoHighLevel, HubSpot, and email integration exa
 
 ## 🌐 Embed on Your Website
 
-Add this before `</body>` on prosper-mfg.com:
+Copy the snippet from [EMBED.html](./EMBED.html), set `widgetUrl` to your
+Vercel URL, and paste it before `</body>` on prosper-mfg.com.
 
-```html
-<script>
-  (function() {
-    var iframe = document.createElement('iframe');
-    iframe.src = 'https://YOUR-PROJECT.vercel.app';
-    iframe.style.cssText = 'position:fixed;bottom:0;right:0;width:100%;height:100%;border:none;z-index:9999;pointer-events:none;';
-    document.body.appendChild(iframe);
-  })();
-</script>
-```
+The iframe is sized to just the chat bubble and grows only while the chat is
+open, so it never blocks clicks anywhere else on the page.
 
 ## 🔐 Environment Variables
 
@@ -135,6 +139,10 @@ Required:
 - `ANTHROPIC_API_KEY` - Get from https://console.anthropic.com/
 
 Optional:
+- `CALENDLY_LINK` - Booking link offered to qualified leads
+  (default: `https://calendly.com/luke-prosper-mfg/30min`)
+- `ALLOWED_ORIGINS` - Comma-separated origins allowed to call the API
+  (default: `*`; set this to `https://prosper-mfg.com` once you go live)
 - `GHL_API_KEY` - GoHighLevel integration
 - `SENDGRID_API_KEY` - Email notifications
 

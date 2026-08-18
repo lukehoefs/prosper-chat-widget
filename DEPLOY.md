@@ -86,20 +86,9 @@ Once tested, add this code to your website:
 2. Select **footer.php**
 3. Paste this code **before** the closing `</body>` tag:
 
-```html
-<!-- Prosper Chat Widget -->
-<script>
-  (function() {
-    var iframe = document.createElement('iframe');
-    iframe.src = 'https://YOUR-PROJECT.vercel.app';
-    iframe.style.cssText = 'position:fixed;bottom:0;right:0;width:100%;height:100%;border:none;z-index:9999;pointer-events:none;';
-    iframe.onload = function() {
-      iframe.contentWindow.postMessage({type: 'init'}, '*');
-    };
-    document.body.appendChild(iframe);
-  })();
-</script>
-```
+Copy the full snippet from [EMBED.html](./EMBED.html) and change `widgetUrl`
+to your Vercel URL. The iframe stays small (just the bubble) until the chat is
+opened, then grows to fit it — so it never blocks clicks on the rest of your page.
 
 ### For HTML Sites:
 
@@ -119,13 +108,12 @@ Paste the same code above **before** `</body>` in your template.
 
 ### Change the Greeting Message
 
-Edit `api/chat.js`, find this line:
+The opening line lives in **two** places that must stay in sync:
+`WELCOME_MESSAGE` in `index.html` (what the visitor sees) and `WELCOME_MESSAGE`
+in `api/chat.js` (so the model knows it already greeted them).
 
-```javascript
-const SYSTEM_PROMPT = `You are a helpful assistant for Prosper Manufacturing...`
-```
-
-Customize the greeting and qualification questions.
+Everything after the greeting — tone, qualification questions, what counts as a
+qualified lead — is in the `SYSTEM_PROMPT` in `api/chat.js`.
 
 ### Change Colors
 
@@ -138,18 +126,14 @@ Edit `index.html`, find the `:root` CSS variables:
 }
 ```
 
-### Add Calendar Integration
+### Change the Booking Link
 
-In `api/chat.js`, when the bot detects booking intent, you can return a Calendly link:
+Calendar booking is built in. When the assistant decides the visitor is
+qualified, the API returns a `bookingUrl` and the widget renders a
+**Book a call** button.
 
-```javascript
-if (userMessage.includes('book') || userMessage.includes('schedule')) {
-  return {
-    response: "Great! Book a time that works for you: https://calendly.com/your-link",
-    conversationHistory: updatedHistory
-  };
-}
-```
+To point it somewhere else, set the `CALENDLY_LINK` environment variable in
+Vercel. It defaults to `https://calendly.com/luke-prosper-mfg/30min`.
 
 ---
 
@@ -157,7 +141,10 @@ if (userMessage.includes('book') || userMessage.includes('schedule')) {
 
 ### Send Leads to Email
 
-In `api/chat.js`, add this after capturing email:
+Captured lead details are collected in the `lead` object in `api/chat.js`
+(fields: `name`, `email`, `company`, `interest`, `volume`, `timeline`). It is
+currently just logged — look for the `console.log('Lead state:', lead)` line and
+send it wherever you need. For example:
 
 ```javascript
 // Send to your email
@@ -173,7 +160,7 @@ await fetch('https://api.sendgrid.com/v3/mail/send', {
     subject: 'New Lead from Chat Widget',
     content: [{
       type: 'text/plain',
-      value: `Name: ${leadName}\nEmail: ${leadEmail}\nInterest: ${interest}`
+      value: `Name: ${lead.name}\nEmail: ${lead.email}\nInterest: ${lead.interest}`
     }]
   })
 });
@@ -189,9 +176,9 @@ await fetch('https://rest.gohighlevel.com/v1/contacts/', {
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
-    name: leadName,
-    email: leadEmail,
-    customField: interest
+    name: lead.name,
+    email: lead.email,
+    customField: lead.interest
   })
 });
 ```

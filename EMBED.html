@@ -1,4 +1,4 @@
-<!-- 
+<!--
 ==============================================
 PROSPER CHAT WIDGET - EMBED CODE
 ==============================================
@@ -8,7 +8,7 @@ right before the closing </body> tag.
 
 REPLACE: "YOUR-PROJECT.vercel.app" with your actual Vercel URL
 
-============================================== 
+==============================================
 -->
 
 <script>
@@ -21,82 +21,68 @@ REPLACE: "YOUR-PROJECT.vercel.app" with your actual Vercel URL
       zIndex: 9999
     };
 
-    // Create iframe
+    var widgetOrigin = new URL(config.widgetUrl).origin;
+
+    // The iframe is only as large as the widget needs, so it never blocks
+    // clicks on the rest of the host page. It grows when the chat opens.
+    var COLLAPSED = { width: '100px', height: '100px' };
+    var EXPANDED = { width: 'min(420px, 100vw)', height: 'min(710px, 100vh)' };
+
     var iframe = document.createElement('iframe');
     iframe.src = config.widgetUrl;
     iframe.id = 'prosper-chat-widget';
-    
-    // Style the iframe
+    iframe.title = 'Prosper Manufacturing chat';
+    iframe.setAttribute('allowtransparency', 'true');
+
     iframe.style.cssText = [
       'position: fixed',
       'bottom: 0',
       config.position === 'bottom-left' ? 'left: 0' : 'right: 0',
-      'width: 100%',
-      'height: 100%',
+      'width: ' + COLLAPSED.width,
+      'height: ' + COLLAPSED.height,
       'border: none',
       'z-index: ' + config.zIndex,
-      'pointer-events: none',
-      'background: transparent'
+      'background: transparent',
+      'color-scheme: normal',
+      'transition: width 0.2s ease, height 0.2s ease'
     ].join(';');
 
-    // Wait for page load
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function() {
-        document.body.appendChild(iframe);
-        if (config.autoOpen) {
-          setTimeout(function() {
-            iframe.contentWindow.postMessage({ type: 'openChat' }, '*');
-          }, 3000);
-        }
-      });
-    } else {
+    function setSize(open) {
+      var size = open ? EXPANDED : COLLAPSED;
+      iframe.style.width = size.width;
+      iframe.style.height = size.height;
+    }
+
+    function mount() {
       document.body.appendChild(iframe);
       if (config.autoOpen) {
         setTimeout(function() {
-          iframe.contentWindow.postMessage({ type: 'openChat' }, '*');
+          iframe.contentWindow.postMessage({ type: 'openChat' }, widgetOrigin);
         }, 3000);
       }
     }
 
-    // Optional: Track chat events
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', mount);
+    } else {
+      mount();
+    }
+
+    // The widget reports open/close so the iframe can resize to match.
     window.addEventListener('message', function(event) {
-      if (event.origin !== config.widgetUrl.replace(/\/$/, '')) return;
-      
-      // You can add analytics tracking here
-      if (event.data.type === 'chatOpened') {
-        console.log('Chat opened');
-        // Example: gtag('event', 'chat_opened');
-      }
-      if (event.data.type === 'leadCaptured') {
-        console.log('Lead captured:', event.data.lead);
-        // Example: gtag('event', 'lead_captured', { email: event.data.lead.email });
-      }
+      if (event.origin !== widgetOrigin) return;
+      if (!event.data || event.data.type !== 'prosper-chat:toggle') return;
+
+      setSize(event.data.open);
+
+      // Optional: hook your analytics in here.
+      // if (event.data.open) { gtag('event', 'chat_opened'); }
     });
   })();
 </script>
 
-<!-- 
+<!--
 ==============================================
 EMBED CODE END
-============================================== 
--->
-
-
-<!-- 
 ==============================================
-ALTERNATIVE: SIMPLE VERSION (minimal code)
-==============================================
-
-If you just want the basic widget without customization:
-
-<script>
-  (function() {
-    var iframe = document.createElement('iframe');
-    iframe.src = 'https://YOUR-PROJECT.vercel.app';
-    iframe.style.cssText = 'position:fixed;bottom:0;right:0;width:100%;height:100%;border:none;z-index:9999;pointer-events:none;';
-    document.body.appendChild(iframe);
-  })();
-</script>
-
-============================================== 
 -->

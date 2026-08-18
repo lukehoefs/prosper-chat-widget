@@ -215,6 +215,25 @@
       opacity: 0.9;
     }
 
+    .chat-close {
+      margin-left: auto;
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .chat-close:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
     .chat-messages {
       flex: 1;
       overflow-y: auto;
@@ -294,6 +313,32 @@
       background: var(--primary);
       color: white;
       border-color: var(--primary);
+    }
+
+    .quick-action:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .book-call {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 12px 22px;
+      background: var(--primary);
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: 9999px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .book-call:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
     }
 
     .typing-indicator {
@@ -450,6 +495,7 @@
           <h3>Prosper Manufacturing</h3>
           <div class="chat-subtitle">Usually replies instantly</div>
         </div>
+        <button class="chat-close" id="chat-close" type="button" aria-label="Close chat">&#10005;</button>
       </div>
 
       <div class="chat-messages" id="chat-messages">
@@ -476,8 +522,18 @@
   <script>
     // Configuration
     const API_ENDPOINT = '/api/chat';
-    let conversationHistory = [];
+
+    // Keep in sync with WELCOME_MESSAGE in api/chat.js — the server tells the model
+    // it has already sent this, so the transcript below starts at the visitor's reply.
+    const WELCOME_MESSAGE =
+      "Hey there! \u{1F44B} I'm here to help with your apparel manufacturing, screen printing, or fulfillment needs.\n\nBefore we dive in, what's your name?";
+
+    // Transcript sent to the API. The welcome message lives in the system prompt,
+    // so this array starts with the visitor's first message.
+    let messages = [];
+    let lead = {};
     let isWaitingForResponse = false;
+    let hasGreeted = false;
 
     // DOM elements
     const chatButton = document.getElementById('chat-button');
@@ -486,70 +542,88 @@
     const chatInput = document.getElementById('chat-input');
     const sendButton = document.getElementById('send-button');
 
+    // Let a host page (see EMBED.html) resize the iframe to match the widget.
+    function notifyParent(isOpen) {
+      if (window.parent === window) return;
+      window.parent.postMessage({ type: 'prosper-chat:toggle', open: isOpen }, '*');
+    }
+
     // Toggle chat window
-    chatButton.addEventListener('click', () => {
+    function toggleChat() {
       const isOpen = chatWindow.classList.toggle('open');
-      chatButton.classList.toggle('open');
-      chatButton.textContent = isOpen ? '✕' : '💬';
-      
-      if (isOpen && conversationHistory.length === 0) {
-        // Send welcome message
-        setTimeout(() => addBotMessage(
-          "Hey there! 👋 I'm here to help with your apparel manufacturing, screen printing, or fulfillment needs.\n\nBefore we dive in, what's your name?"
-        ), 500);
+      chatButton.classList.toggle('open', isOpen);
+      chatButton.textContent = isOpen ? '\u2715' : '\u{1F4AC}';
+      notifyParent(isOpen);
+
+      if (isOpen && !hasGreeted) {
+        hasGreeted = true;
+        setTimeout(() => addBotMessage(WELCOME_MESSAGE), 500);
       }
-      
+
       if (isOpen) {
         chatInput.focus();
       }
+    }
+
+    chatButton.addEventListener('click', toggleChat);
+
+    // On mobile the window goes fullscreen and covers the bubble, so the header
+    // close button is the only way out.
+    document.getElementById('chat-close').addEventListener('click', toggleChat);
+
+    // Esc closes the chat.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && chatWindow.classList.contains('open')) {
+        toggleChat();
+      }
     });
 
-    // Send message
-    async function sendMessage() {
-      const message = chatInput.value.trim();
+    // Allow the host page to open the widget programmatically.
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'openChat' && !chatWindow.classList.contains('open')) {
+        chatButton.click();
+      }
+    });
+
+    async function sendMessage(text) {
+      const message = (text !== undefined ? text : chatInput.value).trim();
       if (!message || isWaitingForResponse) return;
 
-      // Add user message
       addUserMessage(message);
+      messages.push({ role: 'user', content: message });
       chatInput.value = '';
-      
-      // Show typing indicator
+      clearQuickActions();
+
       showTypingIndicator();
       isWaitingForResponse = true;
       sendButton.disabled = true;
 
       try {
-        // Send to API
         const response = await fetch(API_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message,
-            conversationHistory
-          })
+          body: JSON.stringify({ messages, lead })
         });
 
-        if (!response.ok) throw new Error('Network response failed');
+        if (!response.ok) throw new Error('Request failed with status ' + response.status);
 
         const data = await response.json();
-        
-        // Remove typing indicator
         removeTypingIndicator();
-        
-        // Add bot response
-        addBotMessage(data.response);
-        
-        // Update conversation history
-        conversationHistory = data.conversationHistory;
 
-        // Check if we should show quick actions
-        if (data.showQuickActions) {
-          addQuickActions(data.quickActions);
+        addBotMessage(data.reply);
+        messages.push({ role: 'assistant', content: data.reply });
+        lead = data.lead || lead;
+
+        if (data.bookingUrl) {
+          addBookingButton(data.bookingUrl);
+        } else if (data.quickReplies && data.quickReplies.length) {
+          addQuickActions(data.quickReplies);
         }
-
       } catch (error) {
         console.error('Chat error:', error);
         removeTypingIndicator();
+        // Drop the unanswered turn so the next send doesn't replay it.
+        messages.pop();
         addBotMessage("Sorry, I'm having trouble connecting. Please try again in a moment.");
       } finally {
         isWaitingForResponse = false;
@@ -562,7 +636,10 @@
     function addUserMessage(text) {
       const messageDiv = document.createElement('div');
       messageDiv.className = 'message message-user';
-      messageDiv.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+      messageDiv.appendChild(bubble);
       chatMessages.appendChild(messageDiv);
       scrollToBottom();
     }
@@ -570,10 +647,19 @@
     function addBotMessage(text) {
       const messageDiv = document.createElement('div');
       messageDiv.className = 'message message-bot';
-      messageDiv.innerHTML = `
-        <div class="avatar">P</div>
-        <div class="bubble">${escapeHtml(text).replace(/\n/g, '<br>')}</div>
-      `;
+
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar';
+      avatar.textContent = 'P';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      // textContent escapes the text; white-space preserves the line breaks.
+      bubble.style.whiteSpace = 'pre-wrap';
+      bubble.textContent = text;
+
+      messageDiv.appendChild(avatar);
+      messageDiv.appendChild(bubble);
       chatMessages.appendChild(messageDiv);
       scrollToBottom();
     }
@@ -599,22 +685,39 @@
       if (indicator) indicator.remove();
     }
 
+    // Only the newest suggestions stay live, so old ones can't be tapped later.
+    function clearQuickActions() {
+      chatMessages.querySelectorAll('.quick-actions').forEach(el => el.remove());
+    }
+
     function addQuickActions(actions) {
       const actionsDiv = document.createElement('div');
       actionsDiv.className = 'quick-actions';
-      
+
       actions.forEach(action => {
         const btn = document.createElement('button');
         btn.className = 'quick-action';
+        btn.type = 'button';
         btn.textContent = action;
-        btn.onclick = () => {
-          chatInput.value = action;
-          sendMessage();
-        };
+        btn.addEventListener('click', () => sendMessage(action));
         actionsDiv.appendChild(btn);
       });
-      
+
       chatMessages.appendChild(actionsDiv);
+      scrollToBottom();
+    }
+
+    function addBookingButton(url) {
+      // Only one live booking button at a time.
+      chatMessages.querySelectorAll('.book-call').forEach(el => el.remove());
+
+      const link = document.createElement('a');
+      link.className = 'book-call';
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = '\u{1F4C5} Book a call';
+      chatMessages.appendChild(link);
       scrollToBottom();
     }
 
@@ -622,23 +725,14 @@
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
     // Event listeners
-    sendButton.addEventListener('click', sendMessage);
+    sendButton.addEventListener('click', () => sendMessage());
     chatInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
       }
     });
-
-    // Auto-open on first visit (optional)
-    // setTimeout(() => chatButton.click(), 2000);
   </script>
 </body>
 </html>
